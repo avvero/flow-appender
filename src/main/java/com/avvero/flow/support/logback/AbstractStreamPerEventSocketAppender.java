@@ -1,13 +1,17 @@
 package com.avvero.flow.support.logback;
 
 import ch.qos.logback.core.AppenderBase;
-import ch.qos.logback.core.net.*;
+import ch.qos.logback.core.net.DefaultSocketConnector;
+import ch.qos.logback.core.net.ObjectWriterFactory;
+import ch.qos.logback.core.net.QueueFactory;
+import ch.qos.logback.core.net.SocketConnector;
 import ch.qos.logback.core.spi.PreSerializationTransformer;
 import ch.qos.logback.core.util.CloseUtil;
 import ch.qos.logback.core.util.Duration;
 
 import javax.net.SocketFactory;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.net.ConnectException;
 import java.net.InetAddress;
@@ -25,17 +29,6 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBase<E>
         implements SocketConnector.ExceptionHandler {
-
-    private int hasCome = 0;
-    private int hasSend = 0;
-
-    public synchronized int getHasCome() {
-        return ++hasCome;
-    }
-
-    public synchronized int getHasSend() {
-        return ++hasSend;
-    }
 
     /**
      * The default port number of remote logging server (4560).
@@ -202,11 +195,11 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
         return (socket = connector.call()) != null;
     }
 
-    private ObjectWriter createObjectWriterForSocket() throws IOException {
+    private OutputStream createOutputStream() throws IOException {
         socket.setSoTimeout(acceptConnectionTimeout);
-        ObjectWriter objectWriter = objectWriterFactory.newAutoFlushingObjectWriter(socket.getOutputStream());
+        OutputStream outputStream = socket.getOutputStream();
         socket.setSoTimeout(0);
-        return objectWriter;
+        return outputStream;
     }
 
     private SocketConnector createConnector(InetAddress address, int port, int initialDelay, long retryDelay) {
@@ -218,23 +211,27 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
 
     /**
      * Here goes some differences - creates objectWriter for each events
+     *
      * @throws InterruptedException
      * @throws IOException
      */
     private void dispatchEvents() throws InterruptedException, IOException {
-        while (true) {
-            E event = deque.takeFirst();
-            postProcessEvent(event);
-            Serializable serializableEvent = getPST().transform(event);
-            try {
-                ObjectWriter objectWriter = createObjectWriterForSocket();
-                objectWriter.write(serializableEvent);
-            } catch (IOException e) {
-                tryReAddingEventToFrontOfQueue(event);
-                throw e;
+        try (OutputStream out = createOutputStream()) {
+            while (true) {
+                E event = deque.takeFirst();
+                postProcessEvent(event);
+                try {
+                    out.write(transformEvent(event));
+                    out.flush();
+                } catch (IOException e) {
+                    tryReAddingEventToFrontOfQueue(event);
+                    throw e;
+                }
             }
         }
     }
+
+    protected abstract byte[] transformEvent(E event) throws IOException;
 
     private void tryReAddingEventToFrontOfQueue(E event) {
         final boolean wasInserted = deque.offerFirst(event);
@@ -263,10 +260,10 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
      * A subclass may override to provide a different {@link SocketConnector}
      * implementation.
      *
-     * @param address target remote address
-     * @param port target remote port
+     * @param address      target remote address
+     * @param port         target remote port
      * @param initialDelay delay before the first connection attempt
-     * @param retryDelay delay before a reconnection attempt
+     * @param retryDelay   delay before a reconnection attempt
      * @return socket connector
      */
     protected SocketConnector newConnector(InetAddress address, int port, long initialDelay, long retryDelay) {
@@ -285,6 +282,7 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
     /**
      * Post-processes an event before it is serialized for delivery to the
      * remote receiver.
+     *
      * @param event the event to post-process
      */
     protected abstract void postProcessEvent(E event);
@@ -293,6 +291,7 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
      * Get the pre-serialization transformer that will be used to transform
      * each event into a Serializable object before delivery to the remote
      * receiver.
+     *
      * @return transformer object
      */
     protected abstract PreSerializationTransformer<E> getPST();
@@ -330,7 +329,7 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
      * The <b>reconnectionDelay</b> property takes a positive {@link Duration} value
      * representing the time to wait between each failed connection attempt
      * to the server. The default value of this option is to 30 seconds.
-     *
+     * <p>
      * <p>
      * Setting this option to zero turns off reconnection capability.
      */
