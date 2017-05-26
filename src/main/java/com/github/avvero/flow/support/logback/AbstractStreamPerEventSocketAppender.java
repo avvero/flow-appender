@@ -1,4 +1,4 @@
-package com.avvero.flow.support.logback;
+package com.github.avvero.flow.support.logback;
 
 import ch.qos.logback.core.AppenderBase;
 import ch.qos.logback.core.net.DefaultSocketConnector;

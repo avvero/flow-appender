@@ -1,4 +1,4 @@
-package com.avvero.flow.support.logback;
+package com.github.avvero.flow.support.logback;
 
 import ch.qos.logback.classic.net.LoggingEventPreSerializationTransformer;
 import ch.qos.logback.classic.spi.ILoggingEvent;
