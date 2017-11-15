@@ -19,13 +19,17 @@ import java.io.Serializable;
  */
 public class MarkerSocketAppender extends AbstractStreamPerEventSocketAppender<ILoggingEvent> {
 
-    public static final String MT = "MESSAGE\ndestination:%s\ncontent-type:text/plain\ncontent-length:%s\n\n%s";
+    public static final String FORMAT_JSON = "json";
+    public static final String FORMAT_STOMP = "stomp";
+    public static final String STOMP_TEMPLATE = "MESSAGE\ndestination:%s\ncontent-type:text/plain\ncontent-length:%s\n\n%s";
+    public static final String STOMP_JSON = "%s\n";
 
     private static final PreSerializationTransformer<ILoggingEvent> pst =
             new LoggingEventPreSerializationTransformer();
 
     private boolean includeCallerData = false;
     private String marker;
+    private String format = FORMAT_JSON;
     private ObjectMapper mapper = new ObjectMapper();
 
     public MarkerSocketAppender() {
@@ -41,8 +45,16 @@ public class MarkerSocketAppender extends AbstractStreamPerEventSocketAppender<I
     @Override
     protected byte[] transformEvent(ILoggingEvent event) throws IOException {
         Serializable serializableEvent = getPST().transform(event);
-        String m = mapper.writeValueAsString(serializableEvent);
-        return String.format(MT, marker, m.getBytes().length, m).getBytes();
+        String json = mapper.writeValueAsString(serializableEvent);
+        switch (format) {
+            case FORMAT_STOMP: {
+                return String.format(STOMP_TEMPLATE, marker, json.getBytes().length, json).getBytes();
+            }
+            case FORMAT_JSON: {}
+            default: {
+                return String.format(STOMP_JSON, json).getBytes();
+            }
+        }
     }
 
     public void setIncludeCallerData(boolean includeCallerData) {
@@ -69,12 +81,22 @@ public class MarkerSocketAppender extends AbstractStreamPerEventSocketAppender<I
         this.marker = marker;
     }
 
+    public String getFormat() {
+        return format;
+    }
+
+    public void setFormat(String format) {
+        if (format != null && format.trim() != "") {
+            this.format = format;
+        }
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     protected void append(ILoggingEvent event) {
-        if (marker != null && !marker.trim().equals("")) {
+        if (marker != null && !marker.trim().equals("") && event.getMarker() == null) {
             Marker markerObject = MarkerFactory.getMarker(marker);
             if (event instanceof LoggingEvent) {
                 ((LoggingEvent) event).setMarker(markerObject);

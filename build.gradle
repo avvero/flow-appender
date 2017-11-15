@@ -40,43 +40,12 @@ signing {
     sign configurations.archives
 }
 
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
+task writeNewPom {
+    doLast {
+        pom {
+            project {
+                inceptionYear '2017'
             }
-
-            pom.project {
-                name 'flow-appender'
-                packaging 'jar'
-                // optionally artifactId can be defined here
-                description 'Socket appender for Flow https://github.com/avvero/flow'
-                url 'https://github.com/avvero/flow-appender'
-
-                scm {
-                    connection 'scm:git:git://github.com/avvero/flow-appender.git'
-                    developerConnection 'scm:git:ssh://github.com:avvero/flow-appender.git'
-                    url 'https://github.com/avvero/flow-appender/tree/master'
-                }
-
-                licenses {
-                    license {
-                        name 'The Apache License, Version 2.0'
-                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'avvero'
-                        name 'Avvero Abernathy'
-                        email 'avvero.abernathy@gmail.com'
-                    }
-                }
-            }
-        }
+        }.writeTo("$buildDir/newpom.xml")
     }
 }
