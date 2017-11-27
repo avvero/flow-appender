@@ -21,7 +21,7 @@ public class MarkerSocketAppender extends AbstractStreamPerEventSocketAppender<I
 
     public static final String FORMAT_JSON = "json";
     public static final String FORMAT_STOMP = "stomp";
-    public static final String STOMP_TEMPLATE = "MESSAGE\ndestination:%s\ncontent-type:text/plain\ncontent-length:%s\n\n%s";
+    public static final String STOMP_TEMPLATE = "MESSAGE\ndestination:%s\n\n%s\0";
     public static final String STOMP_JSON = "%s\n";
 
     private static final PreSerializationTransformer<ILoggingEvent> pst =
@@ -48,7 +48,7 @@ public class MarkerSocketAppender extends AbstractStreamPerEventSocketAppender<I
         String json = mapper.writeValueAsString(serializableEvent);
         switch (format) {
             case FORMAT_STOMP: {
-                return String.format(STOMP_TEMPLATE, marker, json.getBytes().length, json).getBytes();
+                return String.format(STOMP_TEMPLATE, marker, json).getBytes();
             }
             case FORMAT_JSON: {}
             default: {

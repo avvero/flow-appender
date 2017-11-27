@@ -10,9 +10,9 @@ import ch.qos.logback.core.util.CloseUtil;
 import ch.qos.logback.core.util.Duration;
 
 import javax.net.SocketFactory;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -57,6 +57,8 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
      * the BlockingQueue.
      */
     private static final int DEFAULT_EVENT_DELAY_TIMEOUT = 100;
+
+    private static final int DEFAULT_BUFFER_SIZE = 1024 * 4;
 
     private final ObjectWriterFactory objectWriterFactory;
     private final QueueFactory queueFactory;
@@ -219,9 +221,15 @@ public abstract class AbstractStreamPerEventSocketAppender<E> extends AppenderBa
         try (OutputStream out = createOutputStream()) {
             while (true) {
                 E event = deque.takeFirst();
+                byte[] bytes = transformEvent(event);
+                ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
                 postProcessEvent(event);
                 try {
-                    out.write(transformEvent(event));
+                    int count;
+                    byte[] buffer = new byte[DEFAULT_BUFFER_SIZE]; // or 4096, or more
+                    while ((count = byteArrayInputStream.read(buffer)) > 0) {
+                        out.write(buffer, 0, count);
+                    }
                     out.flush();
                 } catch (IOException e) {
                     tryReAddingEventToFrontOfQueue(event);
