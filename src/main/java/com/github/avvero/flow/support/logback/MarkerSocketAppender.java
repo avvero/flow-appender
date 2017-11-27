@@ -96,13 +96,15 @@ public class MarkerSocketAppender extends AbstractStreamPerEventSocketAppender<I
      */
     @Override
     protected void append(ILoggingEvent event) {
-        if (marker != null && !marker.trim().equals("") && event.getMarker() == null) {
-            Marker markerObject = MarkerFactory.getMarker(marker);
-            if (event instanceof LoggingEvent) {
-                ((LoggingEvent) event).setMarker(markerObject);
-            }
-            if (event instanceof LoggingEventVO) {
-                ((LoggingEvent) event).setMarker(markerObject);
+        Marker markerObject = MarkerFactory.getMarker(marker);
+        synchronized (event) {
+            if (marker != null && !marker.trim().equals("") && event.getMarker() == null) {
+                if (event instanceof LoggingEvent) {
+                    ((LoggingEvent) event).setMarker(markerObject);
+                }
+                if (event instanceof LoggingEventVO) {
+                    ((LoggingEvent) event).setMarker(markerObject);
+                }
             }
         }
         super.append(event);
